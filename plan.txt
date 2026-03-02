@@ -392,3 +392,67 @@ Let's create a web base system .lets avoid subspace as it not working good , use
 │ 3. Test mobile responsiveness at 375px, 768px, 1024px widths                                                                                                                                                                                                                                   │
 │ 4. Deploy to Netlify: netlify deploy --build --prod                                                                                                                                                                                                                                            │
 ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+
+ Plan to implement                                                                                                                            │
+│                                                                                                                                              │
+│ Global Route Progress Bar                                                                                                                    │
+│                                                                                                                                              │
+│ Context                                                                                                                                      │
+│                                                                                                                                              │
+│ The app has no visual feedback during page navigations. After clicking a link or submitting a form that redirects, there's a pause where     │
+│ nothing happens. Button spinners exist for mutations, but route transitions have zero indication.                                            │
+│                                                                                                                                              │
+│ Approach                                                                                                                                     │
+│                                                                                                                                              │
+│ Add a thin NProgress-style animated progress bar at the top of the viewport. Zero new dependencies — fully custom implementation using a     │
+│ module-level singleton store for state.                                                                                                      │
+│                                                                                                                                              │
+│ Files                                                                                                                                        │
+│                                                                                                                                              │
+│ Create: src/hooks/use-route-progress.ts                                                                                                      │
+│                                                                                                                                              │
+│ Module-level singleton store (not React Context — needed because DOM event listeners fire outside the React tree):                           │
+│ - start() — sets active, begins trickle interval (progress slowly increases toward 90%)                                                      │
+│ - done() — jumps to 100%, fades out, resets                                                                                                  │
+│ - useRouteProgress() hook — subscribes to the store, returns { progress, active }                                                            │
+│                                                                                                                                              │
+│ Create: src/components/ui/route-progress.tsx                                                                                                 │
+│                                                                                                                                              │
+│ Two parts in one file:                                                                                                                       │
+│ 1. RouteChangeDetector — calls usePathname() + useSearchParams(), calls done() on change. Wrapped in <Suspense> (required by Next.js for     │
+│ useSearchParams).                                                                                                                            │
+│ 2. RouteProgressBar — renders the visual bar + mounts navigation interceptors:                                                               │
+│   - click listener on document → catches <Link> / <a> clicks to internal routes                                                              │
+│   - popstate listener → catches browser back/forward                                                                                         │
+│   - Monkey-patches history.pushState / history.replaceState → catches router.push() / router.replace()                                       │
+│   - Only triggers on pathname changes (avoids false positives from scroll restoration)                                                       │
+│                                                                                                                                              │
+│ Visual: fixed-position 3px bar, bg-primary (orange), scaleX transform for GPU-composited animation, shimmer overlay, opacity fade on         │
+│ completion.                                                                                                                                  │
+│                                                                                                                                              │
+│ Edit: src/components/providers/app-providers.tsx                                                                                             │
+│                                                                                                                                              │
+│ Add <RouteProgressBar /> inside <TooltipProvider> before {children}.                                                                         │
+│                                                                                                                                              │
+│ Edit: src/app/globals.css                                                                                                                    │
+│                                                                                                                                              │
+│ Add @keyframes progress-shimmer animation + prefers-reduced-motion media query.                                                              │
+│                                                                                                                                              │
+│ Edge Cases Handled                                                                                                                           │
+│                                                                                                                                              │
+│ - Double-trigger (click + pushState both fire) — start() is idempotent when already active                                                   │
+│ - Fast navigations (cached data) — bar flashes to 100% and fades, still gives feedback                                                       │
+│ - Same-page clicks — filtered out by comparing href to current location                                                                      │
+│ - router.refresh() — replaceState patch only triggers on pathname change                                                                     │
+│ - Accessibility — role="progressbar" with aria attributes, prefers-reduced-motion support                                                    │
+│                                                                                                                                              │
+│ Verification                                                                                                                                 │
+│                                                                                                                                              │
+│ 1. Run npm run dev                                                                                                                           │
+│ 2. Navigate between dashboard pages via sidebar links → orange bar appears at top                                                            │
+│ 3. Click browser back/forward → bar appears                                                                                                  │
+│ 4. Submit a form that redirects (e.g., create a notice) → bar appears after redirect                                                         │
+│ 5. Fast-cached pages → brief flash and fade (not jarring)                                                                                    │
+│ 6. Toggle dark mode → bar uses theme-appropriate primary color                       
