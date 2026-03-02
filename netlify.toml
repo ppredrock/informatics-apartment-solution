@@ -1,0 +1,10 @@
+[build]
+  command = "prisma generate && next build"
+  publish = ".next"
+
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["ws", "@prisma/client", "@neondatabase/serverless"]
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
