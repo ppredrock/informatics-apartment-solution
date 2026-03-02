@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getTokens } from "next-firebase-auth-edge";
 import { authConfig } from "@/lib/auth/config";
 import { prisma } from "@/lib/db/prisma";
+import { Prisma } from "@prisma/client";
 import { successResponse, errorResponse, paginatedResponse } from "@/lib/utils/api-response";
 
 async function getUser() {
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
   // Check if user already exists by email
   let user = await prisma.user.findUnique({ where: { email } });
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     if (!user) {
       user = await tx.user.create({
         data: {

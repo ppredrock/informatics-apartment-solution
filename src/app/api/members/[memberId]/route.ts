@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getTokens } from "next-firebase-auth-edge";
 import { authConfig } from "@/lib/auth/config";
 import { prisma } from "@/lib/db/prisma";
+import { Prisma } from "@prisma/client";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
 
 async function getUser() {
@@ -49,7 +50,7 @@ export async function PUT(
   });
   if (!member) return errorResponse("Member not found", 404);
 
-  const updated = await prisma.$transaction(async (tx) => {
+  const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     // Update user details
     await tx.user.update({
       where: { id: member.userId },

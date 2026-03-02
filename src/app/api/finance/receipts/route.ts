@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getTokens } from "next-firebase-auth-edge";
 import { authConfig } from "@/lib/auth/config";
 import { prisma } from "@/lib/db/prisma";
+import { Prisma } from "@prisma/client";
 import { successResponse, errorResponse } from "@/lib/utils/api-response";
 
 async function getUser() {
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
   const newPaidAmount = Number(bill.paidAmount) + Number(amount);
   const newStatus = newPaidAmount >= Number(bill.totalAmount) ? "PAID" : "PARTIALLY_PAID";
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     const payment = await tx.payment.create({
       data: {
         billId,
