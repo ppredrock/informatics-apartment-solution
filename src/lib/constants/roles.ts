@@ -1,0 +1,76 @@
+export const DEFAULT_ROLES = [
+  {
+    name: "Super Admin",
+    description: "Full access to all features",
+    isSystem: true,
+    permissions: [
+      "MEMBER_READ", "MEMBER_WRITE", "MEMBER_DELETE",
+      "FINANCE_READ", "FINANCE_WRITE",
+      "MAINTENANCE_READ", "MAINTENANCE_WRITE", "MAINTENANCE_GENERATE",
+      "GATE_READ", "GATE_WRITE", "GATE_APPROVE",
+      "NOTICE_READ", "NOTICE_WRITE",
+      "COMPLAINT_READ", "COMPLAINT_WRITE", "COMPLAINT_ASSIGN",
+      "ROLE_MANAGE", "SETTINGS_MANAGE", "DASHBOARD_VIEW",
+    ],
+  },
+  {
+    name: "Secretary",
+    description: "Society secretary with broad access",
+    isSystem: true,
+    permissions: [
+      "MEMBER_READ", "MEMBER_WRITE",
+      "FINANCE_READ", "FINANCE_WRITE",
+      "MAINTENANCE_READ", "MAINTENANCE_WRITE", "MAINTENANCE_GENERATE",
+      "GATE_READ", "GATE_APPROVE",
+      "NOTICE_READ", "NOTICE_WRITE",
+      "COMPLAINT_READ", "COMPLAINT_WRITE", "COMPLAINT_ASSIGN",
+      "SETTINGS_MANAGE", "DASHBOARD_VIEW",
+    ],
+  },
+  {
+    name: "Treasurer",
+    description: "Manages society finances",
+    isSystem: true,
+    permissions: [
+      "MEMBER_READ",
+      "FINANCE_READ", "FINANCE_WRITE",
+      "MAINTENANCE_READ", "MAINTENANCE_WRITE", "MAINTENANCE_GENERATE",
+      "DASHBOARD_VIEW",
+    ],
+  },
+  {
+    name: "Committee Member",
+    description: "General committee member",
+    isSystem: true,
+    permissions: [
+      "MEMBER_READ",
+      "FINANCE_READ",
+      "MAINTENANCE_READ",
+      "GATE_READ",
+      "NOTICE_READ", "NOTICE_WRITE",
+      "COMPLAINT_READ", "COMPLAINT_ASSIGN",
+      "DASHBOARD_VIEW",
+    ],
+  },
+  {
+    name: "Resident",
+    description: "Regular society resident",
+    isSystem: true,
+    permissions: [
+      "GATE_READ", "GATE_APPROVE",
+      "NOTICE_READ",
+      "COMPLAINT_READ", "COMPLAINT_WRITE",
+      "MAINTENANCE_READ",
+      "DASHBOARD_VIEW",
+    ],
+  },
+  {
+    name: "Gatekeeper",
+    description: "Security personnel at gate",
+    isSystem: true,
+    permissions: [
+      "GATE_READ", "GATE_WRITE",
+      "GATEKEEPER",
+    ],
+  },
+];

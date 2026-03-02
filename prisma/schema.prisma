@@ -1,0 +1,555 @@
+// ──────────────────────────────────────────────────────────────
+// Prisma Schema – Housing Society Management App
+// Database : PostgreSQL on Neon (serverless)
+// ──────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // In Prisma 7+, url and directUrl are configured via prisma.config.ts.
+  // See prisma.config.ts for DATABASE_URL and DIRECT_URL configuration.
+}
+
+// ────────────────────────────── ENUMS ──────────────────────────────
+
+enum UnitType {
+  STUDIO
+  ONE_BHK
+  TWO_BHK
+  THREE_BHK
+  FOUR_BHK
+  PENTHOUSE
+  SHOP
+  OFFICE
+}
+
+enum OwnershipType {
+  OWNER
+  TENANT
+  FAMILY
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum BillingCycleStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum BillStatus {
+  PENDING
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+}
+
+enum PaymentMethod {
+  CASH
+  CHEQUE
+  UPI
+  BANK_TRANSFER
+  ONLINE
+}
+
+enum VisitPurpose {
+  GUEST
+  DELIVERY
+  CAB
+  SERVICE
+  OTHER
+}
+
+enum EntryRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+enum NoticeCategory {
+  GENERAL
+  MAINTENANCE
+  EVENT
+  EMERGENCY
+  MEETING
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ComplaintCategory {
+  PLUMBING
+  ELECTRICAL
+  CIVIL
+  HOUSEKEEPING
+  SECURITY
+  PARKING
+  NOISE
+  OTHER
+}
+
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+// ────────────────────────────── MODELS ──────────────────────────────
+
+/// Root entity – every other model is scoped to a Society.
+model Society {
+  id             String   @id @default(cuid())
+  name           String
+  address        String
+  city           String
+  state          String
+  pincode        String
+  registrationNo String?
+  logo           String?
+  phone          String
+  email          String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  users            User[]
+  roles            Role[]
+  blocks           Block[]
+  units            Unit[]
+  members          Member[]
+  transactions     Transaction[]
+  billingCycles    BillingCycle[]
+  maintenanceBills MaintenanceBill[]
+  payments         Payment[]
+  visitors         Visitor[]
+  entryRequests    EntryRequest[]
+  preApprovals     PreApproval[]
+  notices          Notice[]
+  complaints       Complaint[]
+  auditLogs        AuditLog[]
+
+  @@map("societies")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  firebaseUid String   @unique
+  email       String   @unique
+  name        String
+  phone       String?
+  avatarUrl   String?
+  isActive    Boolean  @default(true)
+  societyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  society             Society       @relation(fields: [societyId], references: [id])
+  userRoles           UserRole[]
+  members             Member[]
+  createdTransactions Transaction[] @relation("TransactionCreator")
+  approvedVisitors    Visitor[]     @relation("VisitorApprover")
+  gatekeptVisitors    Visitor[]     @relation("VisitorGatekeeper")
+  notices             Notice[]      @relation("NoticeAuthor")
+  filedComplaints     Complaint[]   @relation("ComplaintFiler")
+  assignedComplaints  Complaint[]   @relation("ComplaintAssignee")
+  comments            Comment[]
+  collectedPayments   Payment[]     @relation("PaymentCollector")
+  auditLogs           AuditLog[]
+
+  @@index([societyId])
+  @@index([firebaseUid])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  permissions Json // Array of permission strings
+  isSystem    Boolean  @default(false)
+  societyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  society   Society    @relation(fields: [societyId], references: [id])
+  userRoles UserRole[]
+
+  @@unique([name, societyId])
+  @@index([societyId])
+  @@map("roles")
+}
+
+model UserRole {
+  id         String   @id @default(cuid())
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+  role Role @relation(fields: [roleId], references: [id])
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  name      String
+  societyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  society Society @relation(fields: [societyId], references: [id])
+  units   Unit[]
+
+  @@index([societyId])
+  @@map("blocks")
+}
+
+model Unit {
+  id         String   @id @default(cuid())
+  unitNumber String
+  floor      Int
+  type       UnitType
+  area       Float?
+  blockId    String
+  societyId  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  society          Society           @relation(fields: [societyId], references: [id])
+  block            Block             @relation(fields: [blockId], references: [id])
+  members          Member[]
+  maintenanceBills MaintenanceBill[]
+  visitors         Visitor[]
+  entryRequests    EntryRequest[]
+  preApprovals     PreApproval[]
+
+  @@unique([unitNumber, blockId])
+  @@index([societyId])
+  @@index([blockId])
+  @@map("units")
+}
+
+model Member {
+  id            String        @id @default(cuid())
+  userId        String
+  unitId        String
+  ownershipType OwnershipType
+  moveInDate    DateTime?
+  moveOutDate   DateTime?
+  isActive      Boolean       @default(true)
+  societyId     String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  // Relations
+  society          Society           @relation(fields: [societyId], references: [id])
+  user             User              @relation(fields: [userId], references: [id])
+  unit             Unit              @relation(fields: [unitId], references: [id])
+  maintenanceBills MaintenanceBill[]
+  entryRequests    EntryRequest[]
+  preApprovals     PreApproval[]
+
+  @@index([societyId])
+  @@index([userId])
+  @@index([unitId])
+  @@map("members")
+}
+
+model Transaction {
+  id          String          @id @default(cuid())
+  type        TransactionType
+  category    String
+  amount      Decimal
+  date        DateTime
+  description String?
+  receiptUrl  String?
+  createdById String
+  societyId   String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  // Relations
+  society   Society @relation(fields: [societyId], references: [id])
+  createdBy User    @relation("TransactionCreator", fields: [createdById], references: [id])
+
+  @@index([societyId])
+  @@index([date])
+  @@index([type])
+  @@map("transactions")
+}
+
+model BillingCycle {
+  id        String             @id @default(cuid())
+  name      String
+  month     Int
+  year      Int
+  dueDate   DateTime
+  status    BillingCycleStatus @default(DRAFT)
+  societyId String
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  // Relations
+  society          Society           @relation(fields: [societyId], references: [id])
+  maintenanceBills MaintenanceBill[]
+
+  @@unique([month, year, societyId])
+  @@index([societyId])
+  @@index([status])
+  @@map("billing_cycles")
+}
+
+model MaintenanceBill {
+  id             String     @id @default(cuid())
+  billingCycleId String
+  memberId       String
+  unitId         String
+  totalAmount    Decimal
+  paidAmount     Decimal    @default(0)
+  dueDate        DateTime
+  status         BillStatus @default(PENDING)
+  societyId      String
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  // Relations
+  society      Society        @relation(fields: [societyId], references: [id])
+  billingCycle BillingCycle   @relation(fields: [billingCycleId], references: [id])
+  member       Member         @relation(fields: [memberId], references: [id])
+  unit         Unit           @relation(fields: [unitId], references: [id])
+  lineItems    BillLineItem[]
+  payments     Payment[]
+
+  @@index([societyId])
+  @@index([billingCycleId])
+  @@index([memberId])
+  @@index([unitId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("maintenance_bills")
+}
+
+model BillLineItem {
+  id          String  @id @default(cuid())
+  billId      String
+  head        String
+  amount      Decimal
+  description String?
+
+  // Relations
+  bill MaintenanceBill @relation(fields: [billId], references: [id])
+
+  @@index([billId])
+  @@map("bill_line_items")
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  billId         String
+  amount         Decimal
+  paymentDate    DateTime
+  method         PaymentMethod
+  transactionRef String?
+  receiptNo      String?
+  collectedById  String?
+  societyId      String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  // Relations
+  society     Society         @relation(fields: [societyId], references: [id])
+  bill        MaintenanceBill @relation(fields: [billId], references: [id])
+  collectedBy User?           @relation("PaymentCollector", fields: [collectedById], references: [id])
+
+  @@index([societyId])
+  @@index([billId])
+  @@index([paymentDate])
+  @@index([method])
+  @@map("payments")
+}
+
+model Visitor {
+  id            String       @id @default(cuid())
+  name          String
+  phone         String?
+  purpose       VisitPurpose
+  purposeDetail String?
+  vehicleNo     String?
+  photoUrl      String?
+  entryTime     DateTime
+  exitTime      DateTime?
+  unitId        String
+  approvedById  String?
+  gatekeeperId  String?
+  societyId     String
+  createdAt     DateTime     @default(now())
+
+  // Relations
+  society    Society @relation(fields: [societyId], references: [id])
+  unit       Unit    @relation(fields: [unitId], references: [id])
+  approvedBy User?   @relation("VisitorApprover", fields: [approvedById], references: [id])
+  gatekeeper User?   @relation("VisitorGatekeeper", fields: [gatekeeperId], references: [id])
+
+  @@index([societyId])
+  @@index([unitId])
+  @@index([entryTime])
+  @@map("visitors")
+}
+
+model EntryRequest {
+  id            String             @id @default(cuid())
+  visitorName   String
+  visitorPhone  String?
+  purpose       VisitPurpose
+  purposeDetail String?
+  unitId        String
+  memberId      String?
+  status        EntryRequestStatus @default(PENDING)
+  respondedAt   DateTime?
+  societyId     String
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  // Relations
+  society Society @relation(fields: [societyId], references: [id])
+  unit    Unit    @relation(fields: [unitId], references: [id])
+  member  Member? @relation(fields: [memberId], references: [id])
+
+  @@index([societyId])
+  @@index([unitId])
+  @@index([memberId])
+  @@index([status])
+  @@map("entry_requests")
+}
+
+model PreApproval {
+  id           String   @id @default(cuid())
+  visitorName  String
+  visitorPhone String?
+  purpose      String?
+  validFrom    DateTime
+  validUntil   DateTime
+  isUsed       Boolean  @default(false)
+  memberId     String
+  unitId       String
+  societyId    String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  society Society @relation(fields: [societyId], references: [id])
+  member  Member  @relation(fields: [memberId], references: [id])
+  unit    Unit    @relation(fields: [unitId], references: [id])
+
+  @@index([societyId])
+  @@index([unitId])
+  @@index([validFrom, validUntil])
+  @@map("pre_approvals")
+}
+
+model Notice {
+  id          String         @id @default(cuid())
+  title       String
+  content     String         @db.Text
+  category    NoticeCategory
+  priority    Priority
+  isPublished Boolean        @default(false)
+  publishedAt DateTime?
+  authorId    String
+  societyId   String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  society Society @relation(fields: [societyId], references: [id])
+  author  User    @relation("NoticeAuthor", fields: [authorId], references: [id])
+
+  @@index([societyId])
+  @@index([category])
+  @@index([isPublished])
+  @@map("notices")
+}
+
+model Complaint {
+  id           String            @id @default(cuid())
+  title        String
+  description  String
+  category     ComplaintCategory
+  status       ComplaintStatus   @default(OPEN)
+  priority     Priority
+  filedById    String
+  assignedToId String?
+  resolvedAt   DateTime?
+  societyId    String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  // Relations
+  society    Society   @relation(fields: [societyId], references: [id])
+  filedBy    User      @relation("ComplaintFiler", fields: [filedById], references: [id])
+  assignedTo User?     @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
+  comments   Comment[]
+
+  @@index([societyId])
+  @@index([status])
+  @@index([priority])
+  @@index([filedById])
+  @@map("complaints")
+}
+
+model Comment {
+  id          String   @id @default(cuid())
+  content     String
+  complaintId String
+  authorId    String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  complaint Complaint @relation(fields: [complaintId], references: [id])
+  author    User      @relation(fields: [authorId], references: [id])
+
+  @@index([complaintId])
+  @@index([authorId])
+  @@map("comments")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  entityType String
+  entityId   String
+  userId     String
+  metadata   Json?
+  societyId  String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  society Society @relation(fields: [societyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+
+  @@index([societyId])
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
