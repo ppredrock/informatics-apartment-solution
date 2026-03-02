@@ -13,12 +13,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Bell, LogOut, Settings, User } from "lucide-react";
+import { Bell, LogOut, Menu, Settings, User } from "lucide-react";
 import { toast } from "sonner";
+import { useSidebarMobile } from "@/hooks/use-sidebar-mobile";
 
 export function AppHeader() {
   const { user } = useAuth();
   const router = useRouter();
+  const { setOpen } = useSidebarMobile();
 
   async function handleSignOut() {
     try {
@@ -38,8 +40,17 @@ export function AppHeader() {
     .slice(0, 2) || "U";
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-card px-6">
-      <div>
+    <header className="flex h-14 items-center justify-between border-b border-white/20 bg-card/60 px-4 backdrop-blur-xl md:px-6">
+      <div className="flex items-center gap-3">
+        {/* Mobile hamburger */}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          onClick={() => setOpen(true)}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
         <h2 className="text-lg font-semibold">Dashboard</h2>
       </div>
 

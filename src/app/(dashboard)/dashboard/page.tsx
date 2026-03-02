@@ -9,24 +9,32 @@ export default function DashboardPage() {
       value: "0",
       description: "Active residents",
       icon: Users,
+      color: "text-primary",
+      bgColor: "bg-primary/10",
     },
     {
       title: "Monthly Collection",
       value: "\u20B90",
       description: "This month",
       icon: IndianRupee,
+      color: "text-accent",
+      bgColor: "bg-accent/10",
     },
     {
       title: "Visitors Today",
       value: "0",
       description: "Entries logged",
       icon: DoorOpen,
+      color: "text-chart-3",
+      bgColor: "bg-chart-3/10",
     },
     {
       title: "Open Complaints",
       value: "0",
       description: "Pending resolution",
       icon: MessageSquareWarning,
+      color: "text-destructive",
+      bgColor: "bg-destructive/10",
     },
   ];
 
@@ -41,12 +49,16 @@ export default function DashboardPage() {
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title}>
+            <Card key={stat.title} className="relative overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
+              {/* Gradient accent strip */}
+              <div className="absolute left-0 top-0 h-full w-1 bg-gradient-to-b from-primary to-accent" />
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
                   {stat.title}
                 </CardTitle>
-                <Icon className="h-4 w-4 text-muted-foreground" />
+                <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${stat.bgColor}`}>
+                  <Icon className={`h-4 w-4 ${stat.color}`} />
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{stat.value}</div>
@@ -58,7 +70,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Card>
+        <Card className="hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
           <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
           </CardHeader>
@@ -68,7 +80,7 @@ export default function DashboardPage() {
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200">
           <CardHeader>
             <CardTitle>Quick Actions</CardTitle>
           </CardHeader>
