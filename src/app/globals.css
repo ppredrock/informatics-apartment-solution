@@ -128,6 +128,39 @@
   }
 }
 
+/* Route progress bar */
+@keyframes progress-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.progress-bar {
+  will-change: transform;
+}
+
+.progress-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.4),
+    transparent
+  );
+  animation: progress-shimmer 1.5s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-bar {
+    transition: none !important;
+  }
+  .progress-shimmer {
+    animation: none;
+  }
+}
+
 /* Glassmorphism utility classes */
 @layer utilities {
   .glass {
