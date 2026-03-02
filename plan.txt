@@ -1,0 +1,394 @@
+ Informatics Apartment Society app  Let's create a solution for a housing society.
+
+Key points  - 
+1 - income and expenditure tracking 
+2 - amount of maintenance charges from members and preparation of their ledger
+3 - there should be a way of manually entering resident or uploading an excel for member list 
+4 - balance sheet of society & prep of membership data 
+5 - the society	can assign various custom roles to members , so It must a dedicated role base system 
+6 - controlling the access of unauthorised person in society by issuing to gatepost/request from 'gatekeeper role'
+7 - Take rest references from nobrooker hood .
+
+
+Let's create a web base system .lets avoid subspace as it not working good , use better tools
+
+  Informatics Apartment Society - Implementation Plan
+
+     Context
+
+     Build a web-based housing society management system inspired by NoBroker Hood. The app handles financial management (income/expenses, maintenance billing, ledgers, balance sheets), member
+     management (manual + Excel upload), custom role-based access control, and gate security management (visitor entry/exit, gatekeeper approval workflow). This is a greenfield project starting
+     from an empty directory.
+
+     Tech Stack
+
+     ┌───────────┬──────────────────────────────────────────────────────────────┐
+     │   Layer   │                          Technology                          │
+     ├───────────┼──────────────────────────────────────────────────────────────┤
+     │ Framework │ Next.js 14+ (App Router, TypeScript)                         │
+     ├───────────┼──────────────────────────────────────────────────────────────┤
+     │ UI        │ Tailwind CSS + shadcn/ui + Lucide icons                      │
+     ├───────────┼──────────────────────────────────────────────────────────────┤
+     │ Database  │ PostgreSQL on Neon (serverless)                              │
+     ├───────────┼──────────────────────────────────────────────────────────────┤
+     │ ORM       │ Prisma with Neon serverless adapter                          │
+     ├───────────┼──────────────────────────────────────────────────────────────┤
+     │ Auth      │ Firebase Auth + next-firebase-auth-edge                      │
+     ├───────────┼──────────────────────────────────────────────────────────────┤
+     │ State     │ TanStack Query (server state), React Hook Form + Zod (forms) │
+     ├───────────┼──────────────────────────────────────────────────────────────┤
+     │ Charts    │ Recharts                                                     │
+     ├───────────┼──────────────────────────────────────────────────────────────┤
+     │ Excel     │ xlsx (SheetJS)                                               │
+     ├───────────┼──────────────────────────────────────────────────────────────┤
+     │ Hosting   │ Vercel                                                       │
+     └───────────┴──────────────────────────────────────────────────────────────┘
+
+     Core Modules (6 total)
+
+     1. Auth & RBAC - Firebase login, custom roles with granular permissions
+     2. Member Management - Residents CRUD, Excel upload, unit assignment
+     3. Financial Management - Income/expense, maintenance billing, ledger, balance sheet
+     4. Gate Management - Visitor logging, entry requests, gatekeeper panel
+     5. Notices & Complaints - Society announcements, ticketing system
+     6. Dashboard - Key metrics, charts, quick actions
+
+     ---
+     Implementation Phases
+
+     Phase 1: Project Bootstrap & Infrastructure
+
+     Files created:
+     - package.json, next.config.ts, tsconfig.json, tailwind.config.ts
+     - prisma/schema.prisma - Full database schema
+     - src/middleware.ts - Auth + route protection
+     - src/lib/db/prisma.ts - Prisma client singleton
+     - src/lib/auth/ - Firebase client, admin, session management
+     - src/components/providers/ - App providers (auth, query, theme, toast)
+     - .env.example
+
+     Steps:
+     1. npx create-next-app@latest with TypeScript, Tailwind, App Router
+     2. Install all dependencies (shadcn/ui, Prisma, Firebase, TanStack Query, etc.)
+     3. Initialize shadcn/ui and add core components (button, card, input, table, dialog, form, etc.)
+     4. Set up Prisma with Neon adapter and write full schema
+     5. Configure Firebase auth (client + admin SDK wrappers)
+     6. Build auth middleware with next-firebase-auth-edge
+
+     Database Models (Prisma):
+     - Society - name, address, logo, registrationNo
+     - User - firebaseUid, email, name, phone, societyId
+     - Role - name, description, permissions (JSON), societyId, isSystem
+     - UserRole - userId, roleId (many-to-many)
+     - Block - name, societyId
+     - Unit - block, floor, unitNumber, type, area, societyId
+     - Member - userId, unitId, ownershipType (OWNER/TENANT), moveInDate, isActive
+     - Transaction - type (INCOME/EXPENSE), category, amount, date, description, createdById
+     - BillingCycle - name, month, year, dueDate, status
+     - MaintenanceBill - billingCycleId, memberId, unitId, totalAmount, status
+     - BillLineItem - billId, head, amount
+     - Payment - billId, amount, paymentDate, method, transactionRef
+     - Visitor - name, phone, purpose, vehicleNo, entryTime, exitTime, approvedById
+     - EntryRequest - visitorName, purpose, unitId, status (PENDING/APPROVED/REJECTED)
+     - PreApproval - visitorName, visitorPhone, validFrom, validUntil, memberId
+     - Notice - title, content, category, priority, authorId
+     - Complaint - title, description, category, status, priority, filedById, assignedToId
+     - Comment - complaintId, content, authorId
+     - AuditLog - action, entityType, entityId, userId, metadata
+
+     Every tenant-scoped table has societyId for multi-tenancy.
+
+     Phase 2: Auth & App Shell
+
+     Files:
+     - src/app/(auth)/layout.tsx - Centered auth layout
+     - src/app/(auth)/login/page.tsx - Email/password + Google sign-in
+     - src/app/(auth)/register/page.tsx - Society admin registration
+     - src/app/(dashboard)/layout.tsx - Sidebar + header + auth guard
+     - src/components/layout/app-sidebar.tsx - Navigation sidebar
+     - src/components/layout/app-header.tsx - Top header with user menu
+     - src/components/shared/permission-gate.tsx - Conditional render by permission
+     - src/lib/auth/rbac.ts - Permission checking utilities
+     - src/hooks/use-auth.ts - Auth state hook
+     - src/hooks/use-permission.ts - Permission check hook
+
+     Auth flow: Firebase handles email/password + Google login -> next-firebase-auth-edge middleware validates tokens via cookies -> server components read user from cookie -> RBAC checks
+     permissions at middleware, API, and UI layers.
+
+     Phase 3: Role-Based Access Control
+
+     Files:
+     - src/app/(dashboard)/roles/page.tsx - Roles list
+     - src/app/(dashboard)/roles/new/page.tsx - Create role
+     - src/app/(dashboard)/roles/[roleId]/edit/page.tsx - Edit role permissions
+     - src/app/api/roles/route.ts - CRUD API
+     - src/services/role.service.ts - Business logic
+     - src/lib/constants/permissions.ts - Permission definitions
+
+     Permission system: Roles store a JSON array of permission strings (e.g., ["MEMBER_READ", "MEMBER_WRITE", "FINANCE_READ"]). Pre-seeded system roles: Super Admin, Secretary, Treasurer,
+     Committee Member, Resident, Gatekeeper. Societies can create unlimited custom roles.
+
+     Permission categories:
+     - MEMBER_READ, MEMBER_WRITE, MEMBER_DELETE
+     - FINANCE_READ, FINANCE_WRITE
+     - MAINTENANCE_READ, MAINTENANCE_WRITE, MAINTENANCE_GENERATE
+     - GATE_READ, GATE_WRITE, GATE_APPROVE
+     - NOTICE_READ, NOTICE_WRITE
+     - COMPLAINT_READ, COMPLAINT_WRITE, COMPLAINT_ASSIGN
+     - ROLE_MANAGE, SETTINGS_MANAGE
+     - GATEKEEPER (special role for gate panel access)
+
+     Phase 4: Member Management
+
+     Files:
+     - src/app/(dashboard)/members/page.tsx - Member list (search, filter, paginate)
+     - src/app/(dashboard)/members/new/page.tsx - Add member form
+     - src/app/(dashboard)/members/upload/page.tsx - Excel bulk upload
+     - src/app/(dashboard)/members/[memberId]/page.tsx - Member detail
+     - src/app/(dashboard)/members/[memberId]/ledger/page.tsx - Individual ledger
+     - src/app/api/members/route.ts - CRUD API
+     - src/app/api/members/upload/route.ts - Excel upload API
+     - src/services/member.service.ts - Business logic
+     - src/services/excel.service.ts - Excel parsing
+     - src/lib/validations/member.schema.ts - Zod validation
+     - src/components/shared/data-table/ - Reusable data table components
+
+     Excel upload: Uses xlsx library to parse uploaded .xlsx/.csv files. Shows preview of parsed data with validation errors before confirming import. Maps columns to member fields (name, email,
+     phone, unit, ownership type).
+
+     Phase 5: Financial Management
+
+     Files:
+     - src/app/(dashboard)/finance/page.tsx - Finance overview with charts
+     - src/app/(dashboard)/finance/income/ - Income CRUD pages
+     - src/app/(dashboard)/finance/expenses/ - Expense CRUD pages
+     - src/app/(dashboard)/finance/maintenance/ - Billing cycle management
+     - src/app/(dashboard)/finance/maintenance/generate/page.tsx - Generate bills
+     - src/app/(dashboard)/finance/balance-sheet/page.tsx - Balance sheet report
+     - src/app/(dashboard)/finance/receipts/page.tsx - Payment receipts
+     - src/app/api/finance/ - All finance API routes
+     - src/services/finance.service.ts - Transaction logic
+     - src/services/maintenance.service.ts - Bill generation & payment reconciliation
+
+     Maintenance billing flow: Admin creates a billing cycle (month/year) -> defines billing heads (maintenance, water, parking, sinking fund, etc.) with amounts -> generates bills for all active
+     members -> members see pending bills -> payments recorded against bills -> ledger updated automatically.
+
+     Balance sheet: Aggregates all income transactions, expense transactions, pending receivables, and liabilities to generate a standard balance sheet view with date range filtering.
+
+     Phase 6: Gate Management
+
+     Files:
+     - src/app/(dashboard)/gate/page.tsx - Gate management overview
+     - src/app/(dashboard)/gate/visitors/page.tsx - Visitor log
+     - src/app/(dashboard)/gate/entry-requests/page.tsx - Pending approvals
+     - src/app/(dashboard)/gate/pre-approvals/ - Pre-approval management
+     - src/app/gatekeeper/layout.tsx - Standalone gatekeeper panel layout
+     - src/app/gatekeeper/page.tsx - Quick visitor entry form
+     - src/app/gatekeeper/log/page.tsx - Today's visitor log
+     - src/app/api/gate/ - Gate API routes
+     - src/services/gate.service.ts - Visitor management logic
+
+     Gate flow: Gatekeeper logs visitor at gate -> system sends notification to resident -> resident approves/denies from their dashboard -> gatekeeper sees result. Residents can also pre-approve
+     expected visitors with a time window.
+
+     Gatekeeper panel: Separate route (/gatekeeper) with minimal tablet-friendly UI. Only accessible to users with GATEKEEPER role. Shows quick entry form, today's log, and pending approvals.
+
+     Phase 7: Notices & Complaints
+
+     Files:
+     - src/app/(dashboard)/notices/ - Notice CRUD pages
+     - src/app/(dashboard)/complaints/ - Complaint CRUD pages
+     - src/app/api/notices/ & src/app/api/complaints/ - API routes
+     - src/services/notice.service.ts & src/services/complaint.service.ts
+
+     Notices: Categories (General, Maintenance, Event, Emergency). Priority levels. Created by committee members, visible to all residents.
+
+     Complaints: Filed by residents, assigned to responsible roles. Status flow: Open -> In Progress -> Resolved -> Closed. Comment thread for updates.
+
+     Phase 8: Dashboard & Settings
+
+     Files:
+     - src/app/(dashboard)/dashboard/page.tsx - Main dashboard
+     - src/app/(dashboard)/settings/ - Society settings pages
+     - src/app/(dashboard)/account/page.tsx - User account
+
+     Dashboard widgets:
+     - Total members count & occupancy rate
+     - Monthly income vs expenses chart (Recharts)
+     - Pending maintenance dues summary
+     - Recent visitor activity
+     - Open complaints count
+     - Recent notices
+
+     Settings: Society profile (name, address, logo), billing configuration (heads, amounts), unit/block management, society registration details.
+
+     ---
+     Project Structure Summary
+
+     InfomaticApp/
+     ├── prisma/
+     │   ├── schema.prisma
+     │   ├── seed.ts
+     │   └── migrations/
+     ├── public/
+     ├── src/
+     │   ├── app/
+     │   │   ├── (auth)/          # Login, Register
+     │   │   ├── (dashboard)/     # All authenticated pages
+     │   │   ├── gatekeeper/      # Standalone gatekeeper panel
+     │   │   └── api/             # API route handlers
+     │   ├── components/
+     │   │   ├── ui/              # shadcn/ui primitives
+     │   │   ├── layout/          # Sidebar, header, nav
+     │   │   ├── shared/          # Data table, file upload, permission gate
+     │   │   ├── forms/           # Form building blocks
+     │   │   └── providers/       # Auth, query, theme providers
+     │   ├── lib/
+     │   │   ├── auth/            # Firebase client/admin, session, RBAC
+     │   │   ├── db/              # Prisma client + query functions
+     │   │   ├── validations/     # Zod schemas
+     │   │   ├── utils/           # Formatters, Excel parser, helpers
+     │   │   └── constants/       # Permissions, roles, nav config
+     │   ├── services/            # Business logic layer
+     │   ├── hooks/               # Custom React hooks
+     │   ├── types/               # TypeScript interfaces
+     │   └── middleware.ts         # Auth + RBAC middleware
+     ├── .env.example
+     ├── package.json
+     ├── next.config.ts
+     ├── tailwind.config.ts
+     └── tsconfig.json
+
+     ---
+     Verification Plan
+
+     1. Auth: Register a new society admin -> login -> verify session persists across page refreshes -> logout
+     2. RBAC: Create a custom role with limited permissions -> assign to a user -> verify restricted pages return 403 / hide UI elements
+     3. Members: Add member manually -> verify in list -> upload Excel file -> verify bulk import -> view individual ledger
+     4. Finance: Record income & expense -> generate maintenance bills for a cycle -> record payment -> verify ledger updates -> check balance sheet
+     5. Gate: Log a visitor entry as gatekeeper -> send entry request -> approve as resident -> verify visitor log
+     6. Notices/Complaints: Create notice -> verify visible to residents -> file complaint -> add comment -> change status
+     7. Dashboard: Verify all widget data matches underlying records
+     8. Run npx prisma migrate dev to verify schema, npm run build for type/build checks, npm run lint for code quality
+
+
+
+
+ Plan to implement                                                                                                                                                                                                                                                                              │
+│                                                                                                                                                                                                                                                                                                │
+│ Visual Overhaul: Warm Orange/Amber + Glassmorphism                                                                                                                                                                                                                                             │
+│                                                                                                                                                                                                                                                                                                │
+│ Context                                                                                                                                                                                                                                                                                        │
+│                                                                                                                                                                                                                                                                                                │
+│ The app is functionally complete and deployed. It currently uses default shadcn/ui neutral gray styling. The goal is to transform it into a visually striking, creative, mobile-responsive app using a Warm Orange/Amber color palette with Glassmorphism (frosted glass) effects.             │
+│                                                                                                                                                                                                                                                                                                │
+│ Color Palette                                                                                                                                                                                                                                                                                  │
+│                                                                                                                                                                                                                                                                                                │
+│ - Primary: #EA580C (Orange) | Accent: #D97706 (Amber)                                                                                                                                                                                                                                          │
+│ - Success: #16A34A (Green) | Destructive: #DC2626 (Red)                                                                                                                                                                                                                                        │
+│ - Background: #FFFBEB (Warm Amber-50) | Cards: White @ 80% opacity                                                                                                                                                                                                                             │
+│ - Sidebar: #7C2D12 (Dark Orange-900)                                                                                                                                                                                                                                                           │
+│                                                                                                                                                                                                                                                                                                │
+│ ---                                                                                                                                                                                                                                                                                            │
+│ Implementation Plan (17 files, 8 phases)                                                                                                                                                                                                                                                       │
+│                                                                                                                                                                                                                                                                                                │
+│ Phase 1: Color System — src/app/globals.css                                                                                                                                                                                                                                                    │
+│                                                                                                                                                                                                                                                                                                │
+│ - Replace all OKLch CSS variables with warm orange/amber tones (light + dark mode)                                                                                                                                                                                                             │
+│ - Add glassmorphism utility classes (.glass, .glass-heavy, .glass-light)                                                                                                                                                                                                                       │
+│ - Add decorative radial gradient blobs on body::before/after for ambient colored backdrop                                                                                                                                                                                                      │
+│ - Increase --radius to 0.75rem for softer glass corners                                                                                                                                                                                                                                        │
+│                                                                                                                                                                                                                                                                                                │
+│ Phase 2: Glass Card Foundation — src/components/ui/card.tsx                                                                                                                                                                                                                                    │
+│                                                                                                                                                                                                                                                                                                │
+│ - Add backdrop-blur-xl, border-white/20, shadow-lg shadow-black/5 to base Card                                                                                                                                                                                                                 │
+│ - The semi-transparent --card variable (80% opacity white) makes blur visible                                                                                                                                                                                                                  │
+│ - This single change cascades glassmorphism to every page automatically                                                                                                                                                                                                                        │
+│                                                                                                                                                                                                                                                                                                │
+│ Phase 3: Layout + Sidebar + Header (3 files)                                                                                                                                                                                                                                                   │
+│                                                                                                                                                                                                                                                                                                │
+│ src/app/(dashboard)/layout.tsx                                                                                                                                                                                                                                                                 │
+│ - Add decorative ambient gradient blobs (primary/accent colored, blurred) as background                                                                                                                                                                                                        │
+│ - Create SidebarContext for mobile drawer toggle shared between sidebar and header                                                                                                                                                                                                             │
+│ - Responsive padding: p-4 md:p-6                                                                                                                                                                                                                                                               │
+│                                                                                                                                                                                                                                                                                                │
+│ src/components/layout/app-sidebar.tsx                                                                                                                                                                                                                                                          │
+│ - Dark glass sidebar: bg-sidebar backdrop-blur-xl border-white/10                                                                                                                                                                                                                              │
+│ - Gradient brand icon: bg-gradient-to-br from-primary to-accent                                                                                                                                                                                                                                │
+│ - Hide on mobile (hidden md:flex), add Sheet-based mobile drawer                                                                                                                                                                                                                               │
+│ - Update nav item colors to use sidebar-* tokens                                                                                                                                                                                                                                               │
+│                                                                                                                                                                                                                                                                                                │
+│ src/components/layout/app-header.tsx                                                                                                                                                                                                                                                           │
+│ - Frosted glass header: bg-card/60 backdrop-blur-xl border-white/20                                                                                                                                                                                                                            │
+│ - Add hamburger Menu button (visible on mobile only) to trigger sidebar drawer                                                                                                                                                                                                                 │
+│ - Responsive padding: px-4 md:px-6                                                                                                                                                                                                                                                             │
+│                                                                                                                                                                                                                                                                                                │
+│ Phase 4: Auth Pages — First Impression (3 files)                                                                                                                                                                                                                                               │
+│                                                                                                                                                                                                                                                                                                │
+│ src/app/(auth)/layout.tsx                                                                                                                                                                                                                                                                      │
+│ - Split-screen: left decorative gradient panel (hidden on mobile) + right glass form area                                                                                                                                                                                                      │
+│ - Left panel: bg-gradient-to-br from-sidebar via-primary to-accent with decorative circles, Building2 icon, tagline                                                                                                                                                                            │
+│ - Right panel: ambient gradient blobs behind glass card                                                                                                                                                                                                                                        │
+│                                                                                                                                                                                                                                                                                                │
+│ src/app/(auth)/login/page.tsx                                                                                                                                                                                                                                                                  │
+│ - Gradient icon container: bg-gradient-to-br from-primary to-accent                                                                                                                                                                                                                            │
+│ - Gradient submit button with shadow: shadow-lg shadow-primary/25                                                                                                                                                                                                                              │
+│ - Glass hover on Google button                                                                                                                                                                                                                                                                 │
+│                                                                                                                                                                                                                                                                                                │
+│ src/app/(auth)/register/page.tsx                                                                                                                                                                                                                                                               │
+│ - Same gradient icon + button treatment as login                                                                                                                                                                                                                                               │
+│                                                                                                                                                                                                                                                                                                │
+│ Phase 5: Dashboard Page — src/app/(dashboard)/dashboard/page.tsx                                                                                                                                                                                                                               │
+│                                                                                                                                                                                                                                                                                                │
+│ - Gradient accent strip on left edge of stat cards                                                                                                                                                                                                                                             │
+│ - Colored icon backgrounds: bg-primary/10 with rounded-lg                                                                                                                                                                                                                                      │
+│ - Hover animations: hover:shadow-xl hover:-translate-y-0.5 transition-all                                                                                                                                                                                                                      │
+│                                                                                                                                                                                                                                                                                                │
+│ Phase 6: Shared Components (6 files)                                                                                                                                                                                                                                                           │
+│                                                                                                                                                                                                                                                                                                │
+│ src/components/ui/button.tsx                                                                                                                                                                                                                                                                   │
+│ - Default variant: add shadow-md shadow-primary/20 + hover shadow transition                                                                                                                                                                                                                   │
+│ - Outline variant: glass effect bg-white/50 backdrop-blur-sm border-white/30                                                                                                                                                                                                                   │
+│ - Ghost variant: hover:bg-primary/10 warm tint                                                                                                                                                                                                                                                 │
+│                                                                                                                                                                                                                                                                                                │
+│ src/components/shared/stat-card.tsx                                                                                                                                                                                                                                                            │
+│ - Gradient left accent strip + colored icon bg + hover animation                                                                                                                                                                                                                               │
+│                                                                                                                                                                                                                                                                                                │
+│ src/components/layout/page-header.tsx                                                                                                                                                                                                                                                          │
+│ - Responsive: flex-col sm:flex-row for mobile stacking                                                                                                                                                                                                                                         │
+│                                                                                                                                                                                                                                                                                                │
+│ src/components/shared/empty-state.tsx                                                                                                                                                                                                                                                          │
+│ - Gradient icon ring: bg-gradient-to-br from-primary/20 to-accent/20                                                                                                                                                                                                                           │
+│                                                                                                                                                                                                                                                                                                │
+│ src/components/ui/dialog.tsx                                                                                                                                                                                                                                                                   │
+│ - Glass overlay: bg-black/30 backdrop-blur-sm                                                                                                                                                                                                                                                  │
+│ - Glass content: bg-card backdrop-blur-xl border-white/20                                                                                                                                                                                                                                      │
+│                                                                                                                                                                                                                                                                                                │
+│ src/components/ui/dropdown-menu.tsx                                                                                                                                                                                                                                                            │
+│ - Glass dropdown: bg-popover/95 backdrop-blur-xl border-white/20                                                                                                                                                                                                                               │
+│                                                                                                                                                                                                                                                                                                │
+│ Phase 7: More Glass Overlays (2 files)                                                                                                                                                                                                                                                         │
+│                                                                                                                                                                                                                                                                                                │
+│ - src/components/ui/popover.tsx — glass popover content                                                                                                                                                                                                                                        │
+│ - src/components/ui/sheet.tsx — glass overlay + glass content                                                                                                                                                                                                                                  │
+│                                                                                                                                                                                                                                                                                                │
+│ Phase 8: Mobile Responsiveness (throughout)                                                                                                                                                                                                                                                    │
+│                                                                                                                                                                                                                                                                                                │
+│ - Sidebar converts to slide-out Sheet drawer on mobile                                                                                                                                                                                                                                         │
+│ - Header gets hamburger menu button (md:hidden)                                                                                                                                                                                                                                                │
+│ - Cards stack single-column on small screens (already grid-responsive)                                                                                                                                                                                                                         │
+│ - Page header actions stack vertically on mobile                                                                                                                                                                                                                                               │
+│ - Tighter padding on mobile throughout                                                                                                                                                                                                                                                         │
+│                                                                                                                                                                                                                                                                                                │
+│ ---                                                                                                                                                                                                                                                                                            │
+│ Verification                                                                                                                                                                                                                                                                                   │
+│                                                                                                                                                                                                                                                                                                │
+│ 1. Run npm run build to verify no TypeScript/build errors                                                                                                                                                                                                                                      │
+│ 2. Run locally with npm run dev and check:                                                                                                                                                                                                                                                     │
+│   - Login page: split-screen on desktop, full-width form on mobile                                                                                                                                                                                                                             │
+│   - Dashboard: glass cards with gradient accents, hover animations                                                                                                                                                                                                                             │
+│   - Sidebar: dark warm glass, collapsible, mobile drawer works                                                                                                                                                                                                                                 │
+│   - Dark mode toggle: warm dark theme, glass still visible                                                                                                                                                                                                                                     │
+│ 3. Test mobile responsiveness at 375px, 768px, 1024px widths                                                                                                                                                                                                                                   │
+│ 4. Deploy to Netlify: netlify deploy --build --prod                                                                                                                                                                                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
